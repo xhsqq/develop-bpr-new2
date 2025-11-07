@@ -1,0 +1,113 @@
+# QMCSR Model Configuration
+# 完整但简化的配置，避免过拟合
+
+# ==================== Data Configuration ====================
+data:
+  category: "beauty"
+  min_interactions: 5
+  max_seq_length: 50
+  min_seq_length: 2
+  train_ratio: 0.8
+  valid_ratio: 0.1
+  test_ratio: 0.1
+
+# ==================== Model Configuration ====================
+model:
+  name: "QMCSR"
+
+  # Modality dimensions
+  text_dim: 768        # BERT embedding
+  image_dim: 2048      # ResNet embedding
+
+  # Item embedding (⭐ 简化：更小的维度)
+  item_embed_dim: 64
+
+  # Disentanglement (⭐ 2维：Aesthetic + Emotional)
+  disentangled_dim: 32
+  num_disentangled_dims: 2
+
+  # Quantum encoder (⭐ 简化：更少的兴趣)
+  num_interests: 4
+
+  # Sequence encoder
+  hidden_dim: 64
+  num_layers: 1
+
+  # Regularization
+  dropout: 0.2
+
+# ==================== Training Configuration ====================
+training:
+  batch_size: 64        # ⭐ 适中的batch size
+  epochs: 30            # ⭐ 更少的epochs避免过拟合
+  learning_rate: 0.001
+  weight_decay: 0.0001  # ⭐ L2正则化
+
+  # Optimizer
+  optimizer: "adam"
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+  # Learning rate scheduler
+  scheduler:
+    type: "cosine"
+    warmup_epochs: 2
+    min_lr: 0.00001
+
+  # Early stopping
+  early_stopping:
+    patience: 5
+    min_delta: 0.0001
+
+  # Gradient clipping
+  max_grad_norm: 1.0
+
+  # Progressive training (⭐ 渐进式训练策略)
+  progressive:
+    # Phase 1: 只训练基础模块（不用因果）
+    phase1_epochs: 10
+    use_causal_phase1: false
+
+    # Phase 2: 启用因果去偏
+    phase2_epochs: 20
+    use_causal_phase2: true
+
+# ==================== Loss Configuration ====================
+loss:
+  # Loss weights (⭐ 平衡各个损失项)
+  alpha_ortho: 0.1      # 正交约束
+  alpha_causal: 0.05    # 因果损失（Phase 2启用）
+
+  # Negative sampling
+  num_negatives: 5      # ⭐ 更少的负样本
+
+# ==================== Evaluation Configuration ====================
+evaluation:
+  metrics: ["ndcg", "recall", "hr"]
+  k_list: [5, 10, 20]
+  eval_batch_size: 128
+
+  # Full library evaluation (no negative sampling)
+  full_library: true
+  filter_train_items: true
+
+# ==================== Logging Configuration ====================
+logging:
+  log_dir: "logs/qmcsr"
+  tensorboard: true
+  log_interval: 10      # Log every 10 batches
+  eval_interval: 1      # Evaluate every epoch
+
+# ==================== Checkpoint Configuration ====================
+checkpoint:
+  save_dir: "checkpoints/qmcsr"
+  save_best: true
+  save_last: true
+  monitor: "ndcg@10"
+  mode: "max"
+
+# ==================== Device Configuration ====================
+device: "cuda"          # or "cpu"
+seed: 42
+num_workers: 4
+pin_memory: true
