@@ -119,6 +119,11 @@ class Trainer:
             seq_lengths = batch['seq_lengths'].to(self.device)
             target_items = batch['target_items'].to(self.device)
 
+            # ⭐⭐⭐ 修复：传入数据集提供的candidate_items（如果存在）
+            candidate_items = None
+            if 'candidate_items' in batch:
+                candidate_items = batch['candidate_items'].to(self.device)
+
             # 前向传播
             outputs = self.model(
                 item_ids=item_ids,
@@ -126,6 +131,7 @@ class Trainer:
                 image_features=image_features,
                 seq_lengths=seq_lengths,
                 target_items=target_items,
+                candidate_items=candidate_items,  # ⭐ 传入负样本
                 use_causal=use_causal,
                 return_loss=True
             )
