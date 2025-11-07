@@ -129,7 +129,7 @@ ablation:
 # ============ 高级配置 ============
 advanced:
   temperature: 0.2                     # ⭐ 修复：降低温度以增强判别性（从0.5到0.2）
-  num_negatives: 10                    # ⭐ BPR标准：10个负样本（MultimodalRecommender默认值）
+  num_negatives: 50                    # ⭐ 折中方案：50个负样本（平衡训练效率和性能）
   use_config_temperature: true
   use_config_negatives: true
 

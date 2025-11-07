@@ -78,8 +78,9 @@ loss:
   alpha_ortho: 0.1      # 正交约束
   alpha_causal: 0.05    # 因果损失（Phase 2启用）
 
-  # Negative sampling (BPR标准设置)
-  num_negatives: 5      # ⭐ BPR标准：5个负样本（训练-评估差距是正常的）
+  # Negative sampling (折中方案：平衡训练效率和性能)
+  num_negatives: 50     # ⭐ 折中：50个负样本（gap从2000x降到236x，训练时间增加10倍）
+                        # 可选值：5(快速验证) | 50(推荐) | 100-200(性能调优)
 
 # ==================== Evaluation Configuration ====================
 evaluation:
