@@ -15,7 +15,7 @@ def get_dataloaders(
     max_seq_length: int = 50,
     use_text_features: bool = False,  # 默认False以加快速度
     pin_memory: bool = True,
-    num_negatives: int = 500  # ⭐⭐⭐ 修复训练-评估Gap：增加到500（降低Gap从121x到24x）
+    num_negatives: int = 5  # ⭐ BPR标准：5个负样本（与QMCSR模型一致）
 ) -> Tuple[DataLoader, DataLoader, DataLoader, Dict]:
     """
     获取训练、验证和测试数据加载器

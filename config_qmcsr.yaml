@@ -78,8 +78,8 @@ loss:
   alpha_ortho: 0.1      # 正交约束
   alpha_causal: 0.05    # 因果损失（Phase 2启用）
 
-  # Negative sampling (⭐ 修复：增加负样本以减少训练-评估差距)
-  num_negatives: 500    # 从5增加到500，减少与评估时12K items的差距
+  # Negative sampling (BPR标准设置)
+  num_negatives: 5      # ⭐ BPR标准：5个负样本（训练-评估差距是正常的）
 
 # ==================== Evaluation Configuration ====================
 evaluation:
