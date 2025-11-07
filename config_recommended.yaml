@@ -88,10 +88,10 @@ model:
 
 # ============ 损失权重配置 ============
 loss:
-  # 损失权重
-  alpha_recon: 0.01                    # 重构损失
-  alpha_causal: 0.005                  # 因果损失
-  alpha_diversity: 0.002               # 多样性损失
+  # 损失权重 (⭐ 修复：增加权重以平衡与BPR损失的比例)
+  alpha_recon: 0.1                     # 重构损失（从0.01增加到0.1）
+  alpha_causal: 0.05                   # 因果损失（从0.005增加到0.05）
+  alpha_diversity: 0.01                # 多样性损失（从0.002增加到0.01）
   
   # KL正则化
   beta: 0.1                            # ⭐ 较强KL正则（防止VAE坍塌）
@@ -152,8 +152,8 @@ ablation:
 
 # ============ 高级配置 ============
 advanced:
-  temperature: 0.5
-  num_negatives: 100                   # ⭐ 充分负采样
+  temperature: 0.2                     # ⭐ 修复：降低温度以增强判别性（从0.5到0.2）
+  num_negatives: 50                    # ⭐ 折中方案：50个负样本（平衡训练效率和性能）
   use_config_temperature: true
   use_config_negatives: true
   

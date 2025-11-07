@@ -346,11 +346,14 @@ class SimpleGatedDisentangling(nn.Module):
     def _kl_divergence(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
         """
         KL散度: KL(q(z|x) || p(z))，其中p(z)=N(0,I)
-        
+
         公式: -0.5 * sum(1 + log(σ²) - μ² - σ²)
+
+        Note: 需要同时除以batch_size和latent_dim以正确归一化
         """
         kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return kl / mu.size(0)
+        # 修复：除以batch_size和latent_dim，防止KL损失随维度增长
+        return kl / (mu.size(0) * mu.size(1))
 
 
 # ===向后兼容别名===

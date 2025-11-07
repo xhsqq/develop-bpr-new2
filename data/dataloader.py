@@ -15,7 +15,7 @@ def get_dataloaders(
     max_seq_length: int = 50,
     use_text_features: bool = False,  # 默认False以加快速度
     pin_memory: bool = True,
-    num_negatives: int = 100  # ⭐⭐⭐ 修复训练-评估Gap：4→100（降低Gap从2420x到121x）
+    num_negatives: int = 50  # ⭐ 折中方案：50个负样本（平衡训练效率和性能）
 ) -> Tuple[DataLoader, DataLoader, DataLoader, Dict]:
     """
     获取训练、验证和测试数据加载器

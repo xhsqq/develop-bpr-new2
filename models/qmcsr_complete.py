@@ -486,6 +486,7 @@ class QMCSRRecommender(nn.Module):
         image_features: torch.Tensor,
         seq_lengths: Optional[torch.Tensor] = None,
         target_items: Optional[torch.Tensor] = None,
+        candidate_items: Optional[torch.Tensor] = None,  # ⭐ 新增：数据集提供的候选物品
         use_causal: bool = False,
         return_loss: bool = True
     ) -> Dict[str, torch.Tensor]:
@@ -498,6 +499,7 @@ class QMCSRRecommender(nn.Module):
             image_features: (batch, seq_len, image_dim)
             seq_lengths: (batch,)
             target_items: (batch,) 目标物品
+            candidate_items: (batch, num_candidates) 候选物品（1正 + K负），优先使用
             use_causal: 是否使用因果去偏
             return_loss: 是否计算损失
         """
@@ -577,20 +579,37 @@ class QMCSRRecommender(nn.Module):
         if return_loss and target_items is not None:
             # 推荐损失（BPR）
             batch_indices = torch.arange(batch_size, device=target_items.device)
-            pos_scores = logits[batch_indices, target_items]
 
-            # 负采样
-            num_negatives = 5  # ⭐ 简化：更少的负样本
-            scores_for_neg = logits.clone()
-            scores_for_neg[batch_indices, target_items] = -1e9
-            batch_idx_exp = batch_indices.unsqueeze(1).expand_as(item_ids)
-            scores_for_neg[batch_idx_exp, item_ids] = -1e9
+            # ⭐⭐⭐ 修复：优先使用数据集提供的candidate_items
+            if candidate_items is not None:
+                # 情况1: 使用数据集负采样（1正 + K负）
+                # candidate_items[i, 0] 是正样本（应该等于target_items[i]）
+                # candidate_items[i, 1:] 是K个负样本
 
-            neg_items = torch.topk(scores_for_neg, k=num_negatives, dim=-1).indices
-            neg_scores = logits[batch_indices.unsqueeze(1), neg_items]
+                # 获取候选物品的得分 (batch, num_candidates)
+                cand_scores = logits[batch_indices.unsqueeze(1), candidate_items]
 
-            # BPR损失
-            rec_loss = -F.logsigmoid(pos_scores.unsqueeze(1) - neg_scores).mean()
+                pos_scores = cand_scores[:, 0]  # (batch,) 第0个是正样本
+                neg_scores = cand_scores[:, 1:]  # (batch, K) 其余是负样本
+
+                # BPR损失
+                rec_loss = -F.logsigmoid(pos_scores.unsqueeze(1) - neg_scores).mean()
+            else:
+                # 情况2: 回退到模型内部hard negative mining
+                pos_scores = logits[batch_indices, target_items]
+
+                # 负采样
+                num_negatives = 5  # 默认值（当数据集未提供时使用）
+                scores_for_neg = logits.clone()
+                scores_for_neg[batch_indices, target_items] = -1e9
+                batch_idx_exp = batch_indices.unsqueeze(1).expand_as(item_ids)
+                scores_for_neg[batch_idx_exp, item_ids] = -1e9
+
+                neg_items = torch.topk(scores_for_neg, k=num_negatives, dim=-1).indices
+                neg_scores = logits[batch_indices.unsqueeze(1), neg_items]
+
+                # BPR损失
+                rec_loss = -F.logsigmoid(pos_scores.unsqueeze(1) - neg_scores).mean()
 
             # 正交损失
             ortho_loss = disentangled_output.get('ortho_loss', torch.tensor(0.0))
