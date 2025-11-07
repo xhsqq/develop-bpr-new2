@@ -1,0 +1,234 @@
+# ============================================
+# 优化配置 - 针对NDCG/Recall低的问题
+# 设计理念：增加容量 + 降低因果权重 + 充分负采样
+# ============================================
+
+# ============ 数据配置 ============
+data:
+  category: "beauty"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  data_dir: "data/processed"
+
+  # 批处理配置
+  batch_size: 256                      # 大batch提高稳定性
+  num_workers: 4
+  shuffle: true
+  pin_memory: true
+
+  # 序列配置
+  max_seq_length: 50
+  min_seq_length: 2
+  min_interactions: 5
+
+# ============ 模型架构 - 增加容量 ============
+model:
+  # 多模态维度
+  modality_dims:
+    text: 768
+    image: 2048
+
+  # ⭐⭐⭐ 关键改进1：增加模型容量（从16→64/80维）
+  modality_proj_dims:
+    text: 128                          # 768 → 128 (减少83%)
+    image: 256                         # 2048 → 256 (减少87%)
+
+  item_embed_dim: 64                   # ⭐ 16→64（增加4倍，核心改进！）
+
+  # 解耦表征（适度容量）
+  disentangled_dim: 32                 # ⭐ 16→32（增加2倍）
+  num_disentangled_dims: 3             # 保持3个维度
+
+  disentangled:
+    encoder_hidden_dims: [192, 96]     # 渐进降维
+    vae_reduction_ratio: 0.5
+    attention_dim: 48
+
+  # 序列编码（适度容量）
+  hidden_dim: 80                       # ⭐ 16→80（增加5倍）
+
+  sequence_encoder:
+    num_layers: 2
+    bidirectional: true
+    dropout: 0.2
+
+  # 量子编码器（保持简化版）
+  quantum_version: "simplified"
+  num_interests: 3                     # ⭐ 2→3（增加1个兴趣）
+  quantum_state_dim: 32
+  use_quantum_computing: false
+
+  quantum:
+    attention_heads: 2
+    interference_init_std: 0.01
+    phase_range: "pi"
+    init_scale: "sqrt"
+
+  # 因果推断（保留，但降低权重）
+  causal:
+    scm_hidden_dim: 40
+    intervention_types:
+      - "function_to_mean"
+      - "aesthetics_shift"
+      - "emotion_swap"
+    target_ite_magnitude: 0.3
+    uncertainty_dropout: 0.3
+
+  # Dropout配置
+  dropout: 0.3                         # ⭐ 强正则化（防止过拟合）
+
+# ============ 损失权重配置 ============
+loss:
+  # ⭐⭐⭐ 关键改进2：进一步降低因果损失权重
+  alpha_recon: 0.001                   # 重构损失（保持不变）
+  alpha_causal: 0.0005                 # ⭐ 0.002→0.0005（降低4倍，核心改进！）
+  alpha_diversity: 0.0005              # 多样性损失（保持不变）
+
+  # KL正则化
+  beta: 0.05                           # 适度KL正则
+  gamma: 0.0
+  use_kl_loss: true
+  use_independence_loss: false
+
+  # 内部权重
+  quantum_weights:
+    diversity: 0.7
+
+  causal_weights:
+    magnitude: 1.0
+
+# ============ 训练配置 ============
+training:
+  batch_size: 256
+  num_epochs: 100                      # 充分训练
+  learning_rate: 0.001                 # 标准学习率
+  weight_decay: 0.001                  # ⭐ 强权重衰减（防过拟合）
+
+  # 学习率调度
+  lr_scheduler: "cosine"
+  lr_warmup_epochs: 5                  # 快速warmup
+  lr_min: 0.00001
+
+  # KL退火
+  kl_anneal_epochs: 20
+
+  # 优化器
+  optimizer: "adamw"
+  grad_clip: 1.0
+
+  # 早停
+  early_stopping:
+    patience: 15                       # ⭐ 更耐心（给模型更多时间收敛）
+    min_delta: 0.0003
+
+  # 检查点
+  save_every: 5
+  checkpoint_dir: "checkpoints"
+
+# ============ 评估配置 ============
+evaluation:
+  top_k: [5, 10, 20]
+  metrics:
+    - "recall"
+    - "ndcg"
+    - "hit_rate"
+    - "mrr"
+  eval_every: 1
+  filter_train_items: true
+  test_batch_size: 512
+
+# ============ 消融实验配置 ============
+ablation:
+  enable_disentangled: true
+  enable_quantum: true
+  enable_causal: true                  # ⭐ 保留因果模块
+
+# ============ 高级配置 ============
+advanced:
+  temperature: 0.5
+  num_negatives: 200                   # ⭐⭐⭐ 100→200（增加2倍，核心改进！）
+  use_config_temperature: true
+  use_config_negatives: true
+
+  # ⭐ 训练-评估Gap分析：
+  # 评估时：12101个物品（全库）
+  # 训练时：1正 + 200负 = 201个候选
+  # Gap = 12101 / 201 ≈ 60倍（可接受）
+
+  num_mc_samples: 10
+  use_config_mc_samples: true
+  num_ensembles: 3
+  target_ite: 0.3
+
+  quantum_measurement_samples: 1
+
+# ============ 硬件配置 ============
+device:
+  use_gpu: true
+  gpu_ids: [0]
+  mixed_precision: false
+
+# ============ 随机种子 ============
+seed: 42
+
+# ============ 日志配置 ============
+logging:
+  use_tensorboard: true
+  log_dir: "runs"
+  log_every: 100
+  visualize_attention: false
+  visualize_quantum: false
+
+# ============ 实验信息 ============
+experiment:
+  name: "optimized-multimodal-rec"
+  tags:
+    - "optimized-capacity"
+    - "reduced-causal-weight"
+    - "increased-negatives"
+    - "all-modules-enabled"
+  notes: |
+    ⭐ 优化配置 - 针对NDCG/Recall低的问题
+
+    问题诊断：
+    1. ❌ 模型容量严重不足（16维）
+    2. ❌ 训练-评估Gap过大（120倍）
+    3. ❌ 因果损失可能主导梯度
+    4. ❌ 负采样不足
+
+    解决方案：
+
+    1. ✅ 大幅增加模型容量：
+       - item_embed: 16 → 64（+300%）
+       - hidden: 16 → 80（+400%）
+       - disentangled: 16 → 32（+100%）
+       - num_interests: 2 → 3（+50%）
+
+    2. ✅ 降低因果损失权重：
+       - alpha_causal: 0.002 → 0.0005（-75%）
+       - 让BPR推荐损失主导训练
+
+    3. ✅ 增加负采样：
+       - num_negatives: 100 → 200（+100%）
+       - 缩小训练-评估Gap：120倍 → 60倍
+
+    4. ✅ 强正则化：
+       - dropout: 0.3
+       - weight_decay: 0.001
+       - patience: 15
+
+    5. ✅ 保留所有创新模块：
+       - 解耦表征 ✓
+       - 量子编码器 ✓
+       - 因果推断 ✓（降低权重但保留）
+
+    预期参数量：~1.2-1.5M
+    预期效果：
+    - NDCG@10: 0.06-0.10（提升3-5倍）
+    - Recall@10: 0.10-0.15（提升5-7倍）
+
+    关键insight：
+    问题不是因果模块太复杂，而是：
+    1. 模型容量太小（无法学到足够表征）
+    2. 因果损失权重太高（干扰主任务）
+    3. 负采样不足（训练-评估不一致）

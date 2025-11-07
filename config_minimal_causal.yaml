@@ -1,0 +1,183 @@
+# ============================================
+# 最小因果版本 - 进一步简化因果模块
+# 设计理念：容量优先 + 因果最小化
+# ============================================
+
+# ============ 数据配置 ============
+data:
+  category: "beauty"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  data_dir: "data/processed"
+
+  batch_size: 256
+  num_workers: 4
+  shuffle: true
+  pin_memory: true
+
+  max_seq_length: 50
+  min_seq_length: 2
+  min_interactions: 5
+
+# ============ 模型架构 ============
+model:
+  modality_dims:
+    text: 768
+    image: 2048
+
+  modality_proj_dims:
+    text: 128
+    image: 256
+
+  item_embed_dim: 64                   # 64维
+
+  disentangled_dim: 32                 # 32维
+  num_disentangled_dims: 3
+
+  disentangled:
+    encoder_hidden_dims: [192, 96]
+    vae_reduction_ratio: 0.5
+    attention_dim: 48
+
+  hidden_dim: 80                       # 80维
+
+  sequence_encoder:
+    num_layers: 2
+    bidirectional: true
+    dropout: 0.2
+
+  quantum_version: "simplified"
+  num_interests: 3
+  quantum_state_dim: 32
+  use_quantum_computing: false
+
+  quantum:
+    attention_heads: 2
+    interference_init_std: 0.01
+    phase_range: "pi"
+    init_scale: "sqrt"
+
+  # 因果推断（最小化配置）
+  causal:
+    scm_hidden_dim: 32                 # 40→32（减小）
+    intervention_types:
+      - "function_to_mean"             # 只保留1个最简单的干预
+    target_ite_magnitude: 0.2          # 0.3→0.2（降低干预强度）
+    uncertainty_dropout: 0.3
+
+  dropout: 0.3
+
+# ============ 损失权重配置 ============
+loss:
+  # ⭐⭐⭐ 因果损失接近0
+  alpha_recon: 0.001
+  alpha_causal: 0.0001                 # ⭐⭐⭐ 0.0005→0.0001（降低5倍！）
+  alpha_diversity: 0.0005
+
+  beta: 0.05
+  gamma: 0.0
+  use_kl_loss: true
+  use_independence_loss: false
+
+  quantum_weights:
+    diversity: 0.7
+
+  causal_weights:
+    magnitude: 1.0
+
+# ============ 训练配置 ============
+training:
+  batch_size: 256
+  num_epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.001
+
+  lr_scheduler: "cosine"
+  lr_warmup_epochs: 5
+  lr_min: 0.00001
+
+  kl_anneal_epochs: 20
+
+  optimizer: "adamw"
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 15
+    min_delta: 0.0003
+
+  save_every: 5
+  checkpoint_dir: "checkpoints"
+
+# ============ 评估配置 ============
+evaluation:
+  top_k: [5, 10, 20]
+  metrics:
+    - "recall"
+    - "ndcg"
+    - "hit_rate"
+    - "mrr"
+  eval_every: 1
+  filter_train_items: true
+  test_batch_size: 512
+
+# ============ 消融实验配置 ============
+ablation:
+  enable_disentangled: true
+  enable_quantum: true
+  enable_causal: true                  # 保留但权重极低
+
+# ============ 高级配置 ============
+advanced:
+  temperature: 0.5
+  num_negatives: 200
+  use_config_temperature: true
+  use_config_negatives: true
+
+  num_mc_samples: 5                    # 10→5（减少计算量）
+  use_config_mc_samples: true
+  num_ensembles: 2                     # 3→2（减少计算量）
+  target_ite: 0.2                      # 0.3→0.2（降低干预强度）
+
+  quantum_measurement_samples: 1
+
+# ============ 硬件配置 ============
+device:
+  use_gpu: true
+  gpu_ids: [0]
+  mixed_precision: false
+
+# ============ 随机种子 ============
+seed: 42
+
+# ============ 日志配置 ============
+logging:
+  use_tensorboard: true
+  log_dir: "runs"
+  log_every: 100
+  visualize_attention: false
+  visualize_quantum: false
+
+# ============ 实验信息 ============
+experiment:
+  name: "minimal-causal-multimodal-rec"
+  tags:
+    - "minimal-causal"
+    - "capacity-first"
+    - "simple-intervention"
+  notes: |
+    ⭐ 最小因果版本
+
+    与optimized版本对比：
+    1. 因果损失权重：0.0005 → 0.0001（-80%）
+    2. 干预类型：3个 → 1个（只保留最简单的）
+    3. MC采样：10 → 5（减少计算量）
+    4. 集成数：3 → 2（减少计算量）
+
+    适用场景：
+    - 如果optimized版本训练仍然不稳定
+    - 如果发现因果模块影响收敛
+    - 如果想专注于推荐性能
+
+    预期效果：
+    - NDCG@10: 0.06-0.11（可能比optimized稍好）
+    - 训练更快、更稳定
