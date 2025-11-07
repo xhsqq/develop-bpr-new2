@@ -1,0 +1,227 @@
+# ============================================
+# 最优参数配置 - 针对13万样本的最佳实践
+# 设计理念：轻量投影 + 适度容量 + 充分正则化
+# ============================================
+
+# ============ 数据配置 ============
+data:
+  category: "beauty"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  data_dir: "data/processed"
+  
+  # 批处理配置
+  batch_size: 256                      # 大batch提高稳定性
+  num_workers: 4
+  shuffle: true
+  pin_memory: true
+  
+  # 序列配置
+  max_seq_length: 50
+  min_seq_length: 2
+  min_interactions: 5
+
+# ============ 模型架构 - 最优设计 ============
+model:
+  # ⭐⭐⭐ 核心改进：轻量级投影 + 适度容量
+  # 
+  # 设计原则：
+  # 1. 投影层要轻（减少70-85%维度，而不是60-75%）
+  # 2. 后续模块要有适度容量（不能都是16维）
+  # 3. 总参数量控制在1.5-2M（样本/参数 = 65-87，远超10的标准）
+  
+  # 第一阶段：多模态投影（轻量化）
+  modality_dims:
+    text: 768                          # BERT原始特征
+    image: 2048                        # ResNet原始特征
+  
+  modality_proj_dims:                  # ⭐⭐⭐ 轻量投影（关键优化）
+    text: 128                          # 768 → 128 (减少83%)
+    image: 256                         # 2048 → 256 (减少87%)
+    # 总维度：2816 → 384（减少86%）
+    # 投影层参数：768×128 + 2048×256 = 622K（比之前减少50%）
+  
+  # 第二阶段：物品嵌入
+  item_embed_dim: 64                   # ⭐ 64维适中（12K物品 × 64 = 770K）
+  
+  # 第三阶段：解耦表征
+  disentangled_dim: 40                 # ⭐ 每个维度40维（适中）
+  num_disentangled_dims: 3             # 3个维度
+                                       # 总输出：40×3 = 120维
+  
+  disentangled:
+    encoder_hidden_dims: [256, 128]    # ⭐ 渐进降维：384 → 256 → 128 → 40
+    vae_reduction_ratio: 0.5
+    attention_dim: 64
+  
+  # 第四阶段：序列编码
+  hidden_dim: 96                       # ⭐ GRU隐藏层96维（平衡）
+                                       # 输入：120+64=184维
+                                       # 输出：96×2=192维（双向）
+  
+  sequence_encoder:
+    num_layers: 2                      # 2层GRU
+    bidirectional: true
+    dropout: 0.2
+  
+  # 第五阶段：量子编码器
+  quantum_version: "simplified"
+  num_interests: 3                     # ⭐ 3个兴趣（适中）
+  quantum_state_dim: 32                # ⭐ 每个兴趣32维
+  use_quantum_computing: false
+  
+  quantum:
+    attention_heads: 2
+    interference_init_std: 0.01
+    phase_range: "pi"
+    init_scale: "sqrt"
+  
+  # 第六阶段：因果推断
+  causal:
+    scm_hidden_dim: 48                 # SCM隐藏层
+    intervention_types:
+      - "function_to_mean"
+      - "aesthetics_shift"
+      - "emotion_swap"
+    target_ite_magnitude: 0.3
+    uncertainty_dropout: 0.3
+  
+  # Dropout配置
+  dropout: 0.25
+
+# ============ 损失权重配置 ============
+loss:
+  # 损失权重（平衡配置）
+  alpha_recon: 0.008                   # ⭐ 重构损失
+  alpha_causal: 0.004                  # ⭐ 因果损失
+  alpha_diversity: 0.001               # ⭐ 多样性损失
+  
+  # KL正则化
+  beta: 0.08
+  gamma: 0.0
+  use_kl_loss: true
+  use_independence_loss: false
+  
+  # 内部权重
+  quantum_weights:
+    diversity: 0.7
+  
+  causal_weights:
+    magnitude: 1.0
+
+# ============ 训练配置 ============
+training:
+  batch_size: 256
+  num_epochs: 80
+  learning_rate: 0.001                 # ⭐ 标准学习率
+  weight_decay: 0.0005                 # ⭐ 适度权重衰减
+  
+  # 学习率调度
+  lr_scheduler: "cosine"
+  lr_warmup_epochs: 8
+  lr_min: 0.00005
+  
+  # KL退火
+  kl_anneal_epochs: 25
+  
+  # 优化器
+  optimizer: "adamw"
+  grad_clip: 1.0
+  
+  # 早停
+  early_stopping:
+    patience: 12
+    min_delta: 0.0003
+  
+  # 检查点
+  save_every: 5
+  checkpoint_dir: "checkpoints"
+
+# ============ 评估配置 ============
+evaluation:
+  top_k: [5, 10, 20]
+  metrics:
+    - "recall"
+    - "ndcg"
+    - "hit_rate"
+    - "mrr"
+  eval_every: 1
+  filter_train_items: true
+  test_batch_size: 512
+
+# ============ 消融实验配置 ============
+ablation:
+  enable_disentangled: true
+  enable_quantum: true
+  enable_causal: true
+
+# ============ 高级配置 ============
+advanced:
+  temperature: 0.5
+  num_negatives: 150
+  use_config_temperature: true
+  use_config_negatives: true
+  
+  num_mc_samples: 12
+  use_config_mc_samples: true
+  num_ensembles: 3
+  target_ite: 0.3
+  
+  quantum_measurement_samples: 1
+
+# ============ 硬件配置 ============
+device:
+  use_gpu: true
+  gpu_ids: [0]
+  mixed_precision: false
+
+# ============ 随机种子 ============
+seed: 42
+
+# ============ 日志配置 ============
+logging:
+  use_tensorboard: true
+  log_dir: "runs"
+  log_every: 100
+  visualize_attention: false
+  visualize_quantum: false
+
+# ============ 实验信息 ============
+experiment:
+  name: "optimal-multimodal-rec"
+  tags:
+    - "optimal-architecture"
+    - "lightweight-projection"
+    - "13w-samples"
+  notes: |
+    ⭐ 最优架构设计（13万样本）
+    
+    关键设计决策：
+    
+    1. 轻量投影层（减少50%参数）：
+       - Text: 768 → 128 (vs 256)
+       - Image: 2048 → 256 (vs 512)
+       - 投影层参数：622K (vs 1.25M)
+    
+    2. 适度模型容量：
+       - item_embed: 64维（不要太小）
+       - disentangled: 40维×3（适中）
+       - hidden: 96维（平衡）
+       - quantum: 3兴趣×32维
+    
+    3. 预期参数量：~1.5-2M
+       - 样本/参数 ≈ 65-87（优秀）
+       - 投影层占比 ≈ 30-35%（合理）
+       - Item嵌入占比 ≈ 35-40%
+    
+    4. 训练策略：
+       - 大batch（256）
+       - 适度正则化（dropout=0.25, wd=0.0005）
+       - 充分负采样（150个）
+    
+    与其他配置对比：
+    - vs 平衡配置：参数减少40%，投影层更轻
+    - vs 当前配置：容量增加2倍，避免欠拟合
+    
+    预期效果：NDCG@10 = 0.06-0.10
+
