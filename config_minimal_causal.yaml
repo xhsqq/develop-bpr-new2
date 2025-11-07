@@ -69,12 +69,12 @@ model:
 
 # ============ 损失权重配置 ============
 loss:
-  # ⭐⭐⭐ 因果损失接近0
-  alpha_recon: 0.001
-  alpha_causal: 0.0001                 # ⭐⭐⭐ 0.0005→0.0001（降低5倍！）
-  alpha_diversity: 0.0005
+  # ⭐⭐⭐ 修复：大幅增加辅助损失权重以平衡BPR损失
+  alpha_recon: 0.1                     # 从0.001增加到0.1（100倍！）
+  alpha_causal: 0.05                   # 从0.0001增加到0.05（500倍！）
+  alpha_diversity: 0.01                # 从0.0005增加到0.01（20倍！）
 
-  beta: 0.05
+  beta: 0.1                            # 从0.05增加到0.1
   gamma: 0.0
   use_kl_loss: true
   use_independence_loss: false
@@ -128,8 +128,8 @@ ablation:
 
 # ============ 高级配置 ============
 advanced:
-  temperature: 0.5
-  num_negatives: 200
+  temperature: 0.2                     # ⭐ 修复：降低温度以增强判别性（从0.5到0.2）
+  num_negatives: 500                   # ⭐ 修复：增加负采样以减少训练-评估差距（从200到500）
   use_config_temperature: true
   use_config_negatives: true
 
